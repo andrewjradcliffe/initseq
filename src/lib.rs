@@ -1,11 +1,33 @@
 #[derive(Debug)]
-pub struct InitSeqEstimate {
+pub struct InitSeqEstimator {
     var_pos: f64,
     var_dec: f64,
     var_con: f64,
     gamma_pos: Vec<f64>,
     gamma_dec: Vec<f64>,
     gamma_con: Vec<f64>,
+}
+pub enum Estimator {
+    Positive,
+    Monotone,
+    Convex,
+}
+use self::Estimator::*;
+impl InitSeqEstimator {
+    pub fn var(&self, rhs: Estimator) -> f64 {
+        match rhs {
+            Positive => self.var_pos,
+            Monotone => self.var_dec,
+            Convex => self.var_con,
+        }
+    }
+    pub fn gamma<'a>(&'a self, rhs: Estimator) -> &'a Vec<f64> {
+        match rhs {
+            Positive => &self.gamma_pos,
+            Monotone => &self.gamma_dec,
+            Convex => &self.gamma_con,
+        }
+    }
 }
 
 #[inline]
@@ -23,7 +45,7 @@ fn offset_dot_self(x: &[f64], lb: usize, ub: usize) -> f64 {
     //     .fold(0.0, |acc, (a, b)| a.mul_add(*b, acc))
 }
 
-pub fn init_seq(x: &[f64]) -> InitSeqEstimate {
+pub fn init_seq(x: &[f64]) -> InitSeqEstimator {
     let n = x.len();
     let inv_n = 1.0 / n as f64;
     let mu = x.iter().sum::<f64>() * inv_n;
@@ -100,7 +122,7 @@ pub fn init_seq(x: &[f64]) -> InitSeqEstimate {
     let var_dec = 2.0 * gamma_dec.iter().sum::<f64>() - gamma_0;
     let var_con = 2.0 * gamma_con.iter().sum::<f64>() - gamma_0;
 
-    InitSeqEstimate {
+    InitSeqEstimator {
         var_pos,
         var_dec,
         var_con,
