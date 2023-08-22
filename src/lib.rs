@@ -8,7 +8,22 @@ pub struct InitSeqEstimate {
     gamma_con: Vec<f64>,
 }
 
-pub fn initseq(x: &[f64]) -> InitSeqEstimate {
+#[inline]
+fn offset_dot_self(x: &[f64], lb: usize, ub: usize) -> f64 {
+    // Option 1
+    x[..ub]
+        .iter()
+        .zip(x[lb..].iter())
+        .map(|(a, b)| *a * *b)
+        .sum::<f64>()
+    // Option 2
+    // x[..ub]
+    //     .iter()
+    //     .zip(x[lb..].iter())
+    //     .fold(0.0, |acc, (a, b)| a.mul_add(*b, acc))
+}
+
+pub fn init_seq(x: &[f64]) -> InitSeqEstimate {
     let n = x.len();
     let inv_n = 1.0 / n as f64;
     let mu = x.iter().sum::<f64>() * inv_n;
@@ -17,31 +32,17 @@ pub fn initseq(x: &[f64]) -> InitSeqEstimate {
     let half = n / 2;
     let mut gamma_hat: Vec<f64> = Vec::with_capacity(half);
     let mut gamma_0: f64 = 0.0;
-    for k in 0..n / 2 {
+    for k in 0..half {
         let lb = 2 * k;
         let ub = n - lb;
-        let gamma_2k = z[..ub]
-            .iter()
-            .zip(z[lb..].iter())
-            .fold(0.0, |acc, (z_i, z_ik)| {
-                // z_i.mul_add(*z_ik, acc)
-                acc + *z_i * *z_ik
-            })
-            * inv_n;
+        let gamma_2k = offset_dot_self(&z, lb, ub) * inv_n;
         if k == 0 {
             gamma_0 = gamma_2k;
         }
 
         let lb = lb + 1;
         let ub = ub - 1;
-        let gamma_2k1 = z[..ub]
-            .iter()
-            .zip(z[lb..].iter())
-            .fold(0.0, |acc, (z_i, z_ik)| {
-                // z_i.mul_add(*z_ik, acc)
-                acc + *z_i * *z_ik
-            })
-            * inv_n;
+        let gamma_2k1 = offset_dot_self(&z, lb, ub) * inv_n;
 
         let gamma_hat_k = gamma_2k + gamma_2k1;
         if gamma_hat_k > 0.0 {
@@ -65,6 +66,8 @@ pub fn initseq(x: &[f64]) -> InitSeqEstimate {
         }
         gamma_dec.push(min);
     }
+
+    // Greatest convex minorant via isotonic regression on derivative
     for k in (1..m).into_iter().rev() {
         gamma_hat[k] -= gamma_hat[k - 1];
     }
