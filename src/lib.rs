@@ -1,5 +1,5 @@
 #[derive(Debug)]
-pub struct InitSeqEstimator {
+pub struct InitSeq {
     var_pos: f64,
     var_dec: f64,
     var_con: f64,
@@ -13,7 +13,7 @@ pub enum Estimator {
     Convex,
 }
 use self::Estimator::*;
-impl InitSeqEstimator {
+impl InitSeq {
     pub fn var(&self, rhs: Estimator) -> f64 {
         match rhs {
             Positive => self.var_pos,
@@ -45,7 +45,7 @@ fn offset_dot_self(x: &[f64], lb: usize, ub: usize) -> f64 {
     //     .fold(0.0, |acc, (a, b)| a.mul_add(*b, acc))
 }
 
-pub fn init_seq(x: &[f64]) -> InitSeqEstimator {
+pub fn init_seq(x: &[f64]) -> InitSeq {
     let n = x.len();
     let inv_n = 1.0 / n as f64;
     let mu = x.iter().sum::<f64>() * inv_n;
@@ -122,7 +122,7 @@ pub fn init_seq(x: &[f64]) -> InitSeqEstimator {
     let var_dec = 2.0 * gamma_dec.iter().sum::<f64>() - gamma_0;
     let var_con = 2.0 * gamma_con.iter().sum::<f64>() - gamma_0;
 
-    InitSeqEstimator {
+    InitSeq {
         var_pos,
         var_dec,
         var_con,
