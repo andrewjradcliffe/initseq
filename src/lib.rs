@@ -89,33 +89,35 @@ pub fn init_seq(x: &[f64]) -> InitSeq {
         gamma_dec.push(min);
     }
 
-    // Greatest convex minorant via isotonic regression on derivative
-    for k in (1..m).into_iter().rev() {
-        gamma_hat[k] -= gamma_hat[k - 1];
-    }
+    // // Greatest convex minorant via isotonic regression on derivative
+    // for k in (1..m).into_iter().rev() {
+    //     gamma_hat[k] -= gamma_hat[k - 1];
+    // }
 
-    // Pool Adjacent Violator Algorithm
-    let mut p: Vec<f64> = vec![0.0; m];
-    let mut nu: Vec<usize> = vec![0; m];
-    let mut n: usize = 0;
-    for k in 1..m {
-        p[n] = gamma_hat[k];
-        nu[n] = 1;
-        n += 1;
-        while n > 1 && (p[n - 1] / nu[n - 1] as f64) < (p[n - 2] / nu[n - 2] as f64) {
-            p[n - 2] += p[n - 1];
-            nu[n - 2] += nu[n - 1];
-            n -= 1;
-        }
-    }
-    let mut k: usize = 1;
-    for (p_j, nu_j) in p[0..n].iter().zip(nu[0..n].iter()) {
-        let mu = *p_j / *nu_j as f64;
-        for _ in 0..*nu_j {
-            gamma_hat[k] = gamma_hat[k - 1] + mu;
-            k += 1;
-        }
-    }
+    // // Pool Adjacent Violator Algorithm
+    // let mut p: Vec<f64> = Vec::with_capacity(m);
+    // p.resize(m, 0.0);
+    // let mut nu: Vec<usize> = Vec::with_capacity(m);
+    // nu.resize(m, 0);
+    // let mut n: usize = 0;
+    // for k in 1..m {
+    //     p[n] = gamma_hat[k];
+    //     nu[n] = 1;
+    //     n += 1;
+    //     while n > 1 && (p[n - 1] / nu[n - 1] as f64) < (p[n - 2] / nu[n - 2] as f64) {
+    //         p[n - 2] += p[n - 1];
+    //         nu[n - 2] += nu[n - 1];
+    //         n -= 1;
+    //     }
+    // }
+    // let mut k: usize = 1;
+    // for (p_j, nu_j) in p[0..n].iter().zip(nu[0..n].iter()) {
+    //     let mu = *p_j / *nu_j as f64;
+    //     for _ in 0..*nu_j {
+    //         gamma_hat[k] = gamma_hat[k - 1] + mu;
+    //         k += 1;
+    //     }
+    // }
     // p.truncate(n - 1);
     // nu.truncate(n - 1);
     // for (p_j, nu_j) in p.into_iter().zip(nu.into_iter()) {
@@ -125,42 +127,52 @@ pub fn init_seq(x: &[f64]) -> InitSeq {
     //         k += 1;
     //     }
     // }
-    let gamma_con: Vec<f64> = gamma_hat.into_iter().collect();
+    // let gamma_con: Vec<f64> = gamma_hat.into_iter().collect();
 
-    // let mut nu = diff(&gamma_hat);
-    // let k = nu.len();
-    // let mut w: Vec<usize> = Vec::with_capacity(k);
-    // w.resize(k, 1);
-    // let mut j = k - 1;
-    // loop {
-    //     while j > 0 && nu[j - 1] <= nu[j] {
-    //         j -= 1;
-    //     }
-    //     if j == 0 {
-    //         break;
-    //     }
-    //     let w_prime = w[j - 1] + w[j];
-    //     let w_j_m1 = w[j - 1] as f64;
-    //     let w_j = w[j] as f64;
-    //     let nu_prime = (w_j_m1 * nu[j - 1] + w_j * nu[j]) / w_prime as f64;
-    //     nu.remove(j);
-    //     w.remove(j);
-    //     nu[j - 1] = nu_prime;
-    //     w[j - 1] = w_prime;
-    //     // Adjacent violators were pooled, thus check the newly formed block
-    //     // against the (new) preceding block. However, if we pooled the
-    //     // penultimate and last blocks, then no (new) preceding block exists,
-    //     // and we must move the index left.
-    //     j = j.min(nu.len() - 1);
+    // Greatest convex minorant via isotonic regression on derivative
+    for k in (1..m).into_iter().rev() {
+        gamma_hat[k] -= gamma_hat[k - 1];
+    }
+    // let mut k = m - 1;
+    // while k > 0 {
+    //     gamma_hat[k] -= gamma_hat[k - 1];
+    //     k -= 1;
     // }
-    // let mut gamma_con = gamma_hat.into_iter().collect();
-    // let mut pos: usize = 1;
-    // for (nu_i, w_i) in nu.into_iter().zip(w.into_iter()) {
-    //     for _ in 0..w_i {
-    //         gamma_con[pos] = gamma_con[pos - 1] + nu_i;
-    //         pos += 1;
-    //     }
-    // }
+    let n = gamma_hat.len() - 1;
+    let mut nu: Vec<f64> = Vec::with_capacity(n);
+    nu.push(gamma_hat[1]);
+    let mut w: Vec<usize> = Vec::with_capacity(n);
+    w.push(1);
+    let mut j: usize = 0;
+    let mut i: usize = 1;
+    while i < n {
+        j += 1;
+        nu.push(gamma_hat[i + 1]);
+        w.push(1);
+        i += 1;
+        while j > 0 && nu[j - 1] > nu[j] {
+            let w_prime = w[j - 1] + w[j];
+            let nu_prime = (w[j - 1] as f64 * nu[j - 1] + w[j] as f64 * nu[j]) / w_prime as f64;
+            nu[j - 1] = nu_prime;
+            w[j - 1] = w_prime;
+            nu.swap_remove(j);
+            w.swap_remove(j);
+            j -= 1;
+        }
+    }
+    let m = j + 1;
+    j = 0;
+    gamma_hat.shrink_to_fit();
+    let mut gamma_con = gamma_hat;
+    let mut pos: usize = 1;
+    while j < m {
+        let mu = nu[j];
+        for _ in 0..w[j] {
+            gamma_con[pos] = gamma_con[pos - 1] + mu;
+            pos += 1;
+        }
+        j += 1;
+    }
 
     let var_pos = 2.0 * gamma_pos.iter().sum::<f64>() - gamma_0;
     let var_dec = 2.0 * gamma_dec.iter().sum::<f64>() - gamma_0;
