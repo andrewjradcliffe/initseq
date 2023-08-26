@@ -57,94 +57,105 @@ fn diff_in_place(x: &mut [f64]) {
 
 pub fn init_seq(x: &[f64]) -> InitSeq {
     let n = x.len();
-    let inv_n = 1.0 / n as f64;
-    let mu = x.iter().sum::<f64>() * inv_n;
-    let z: Vec<f64> = x.iter().map(move |x_i| *x_i - mu).collect();
+    if n > 1 {
+        let inv_n = 1.0 / n as f64;
+        let mu = x.iter().sum::<f64>() * inv_n;
+        let z: Vec<f64> = x.iter().map(move |x_i| *x_i - mu).collect();
 
-    let mut gamma_hat: Vec<f64> = vec![0.0; n / 2];
-    let mut gamma_0: f64 = 0.0;
-    let mut k: usize = 0;
+        let mut gamma_hat: Vec<f64> = vec![0.0; n / 2];
+        let mut gamma_0: f64 = 0.0;
+        let mut k: usize = 0;
 
-    for g_hat in gamma_hat.iter_mut() {
-        let lb = 2 * k;
-        let ub = n - lb;
-        let gamma_2k = offset_dot_self(&z, lb, ub) * inv_n;
-        if k == 0 {
-            gamma_0 = gamma_2k;
+        for g_hat in gamma_hat.iter_mut() {
+            let lb = 2 * k;
+            let ub = n - lb;
+            let gamma_2k = offset_dot_self(&z, lb, ub) * inv_n;
+            if k == 0 {
+                gamma_0 = gamma_2k;
+            }
+
+            let lb = lb + 1;
+            let ub = ub - 1;
+            let gamma_2k1 = offset_dot_self(&z, lb, ub) * inv_n;
+
+            let gamma_hat_k = gamma_2k + gamma_2k1;
+            if gamma_hat_k > 0.0 {
+                *g_hat = gamma_hat_k;
+                k += 1;
+            } else {
+                *g_hat = 0.0;
+                k += 1;
+                break;
+            }
         }
+        gamma_hat.truncate(k);
 
-        let lb = lb + 1;
-        let ub = ub - 1;
-        let gamma_2k1 = offset_dot_self(&z, lb, ub) * inv_n;
+        let gamma_pos = gamma_hat.clone();
+        let mut min = f64::MAX;
+        gamma_hat.iter_mut().for_each(move |hat| {
+            min = hat.min(min);
+            *hat = min;
+        });
+        let gamma_dec = gamma_hat.clone();
 
-        let gamma_hat_k = gamma_2k + gamma_2k1;
-        if gamma_hat_k > 0.0 {
-            *g_hat = gamma_hat_k;
-            k += 1;
-        } else {
-            *g_hat = 0.0;
-            k += 1;
-            break;
-        }
-    }
-    gamma_hat.truncate(k);
+        // Greatest convex minorant via isotonic regression on derivative
+        diff_in_place(gamma_hat.as_mut_slice());
 
-    let gamma_pos = gamma_hat.clone();
-    let mut min = f64::MAX;
-    gamma_hat.iter_mut().for_each(move |hat| {
-        min = hat.min(min);
-        *hat = min;
-    });
-    let gamma_dec = gamma_hat.clone();
-
-    // Greatest convex minorant via isotonic regression on derivative
-    diff_in_place(gamma_hat.as_mut_slice());
-
-    let v = &gamma_hat[1..];
-    let n = v.len();
-    let mut nu: Vec<f64> = Vec::with_capacity(n);
-    nu.push(v[0]);
-    let mut w: Vec<usize> = Vec::with_capacity(n);
-    w.push(1);
-    let mut j: usize = 0;
-    let mut i: usize = 1;
-    while i < n {
-        j += 1;
-        nu.push(v[i]);
+        let v = &gamma_hat[1..];
+        let n = v.len();
+        let mut nu: Vec<f64> = Vec::with_capacity(n);
+        nu.push(v[0]);
+        let mut w: Vec<usize> = Vec::with_capacity(n);
         w.push(1);
-        i += 1;
-        while j > 0 && nu[j - 1] > nu[j] {
-            let w_prime = w[j - 1] + w[j];
-            let nu_prime = (w[j - 1] as f64 * nu[j - 1] + w[j] as f64 * nu[j]) / w_prime as f64;
-            nu[j - 1] = nu_prime;
-            w[j - 1] = w_prime;
-            nu.pop();
-            w.pop();
-            j -= 1;
+        let mut j: usize = 0;
+        let mut i: usize = 1;
+        while i < n {
+            j += 1;
+            nu.push(v[i]);
+            w.push(1);
+            i += 1;
+            while j > 0 && nu[j - 1] > nu[j] {
+                let w_prime = w[j - 1] + w[j];
+                let nu_prime = (w[j - 1] as f64 * nu[j - 1] + w[j] as f64 * nu[j]) / w_prime as f64;
+                nu[j - 1] = nu_prime;
+                w[j - 1] = w_prime;
+                nu.pop();
+                w.pop();
+                j -= 1;
+            }
         }
-    }
-    let mut gamma_con = gamma_hat;
-    let mut pos: usize = 1;
-    let mut nu_prev: f64 = gamma_con[0];
-    for (nu_j, w_j) in nu.into_iter().zip(w.into_iter()) {
-        for mu_pos in gamma_con[pos..pos + w_j].iter_mut() {
-            *mu_pos = nu_prev + nu_j;
-            nu_prev = mu_pos.clone();
+        let mut gamma_con = gamma_hat;
+        let mut pos: usize = 1;
+        let mut nu_prev: f64 = gamma_con[0];
+        for (nu_j, w_j) in nu.into_iter().zip(w.into_iter()) {
+            for mu_pos in gamma_con[pos..pos + w_j].iter_mut() {
+                *mu_pos = nu_prev + nu_j;
+                nu_prev = mu_pos.clone();
+            }
+            pos += w_j;
         }
-        pos += w_j;
-    }
 
-    let var_pos = 2.0 * gamma_pos.iter().sum::<f64>() - gamma_0;
-    let var_dec = 2.0 * gamma_dec.iter().sum::<f64>() - gamma_0;
-    let var_con = 2.0 * gamma_con.iter().sum::<f64>() - gamma_0;
+        let var_pos = 2.0 * gamma_pos.iter().sum::<f64>() - gamma_0;
+        let var_dec = 2.0 * gamma_dec.iter().sum::<f64>() - gamma_0;
+        let var_con = 2.0 * gamma_con.iter().sum::<f64>() - gamma_0;
 
-    InitSeq {
-        var_pos,
-        var_dec,
-        var_con,
-        gamma_pos,
-        gamma_dec,
-        gamma_con,
+        InitSeq {
+            var_pos,
+            var_dec,
+            var_con,
+            gamma_pos,
+            gamma_dec,
+            gamma_con,
+        }
+    } else {
+        InitSeq {
+            var_pos: f64::NAN,
+            var_dec: f64::NAN,
+            var_con: f64::NAN,
+            gamma_pos: vec![],
+            gamma_dec: vec![],
+            gamma_con: vec![],
+        }
     }
 }
 
