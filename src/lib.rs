@@ -89,28 +89,13 @@ pub fn init_seq(x: &[f64]) -> InitSeq {
     }
     gamma_hat.truncate(k);
 
-    // let mut gamma_pos: Vec<f64> = vec![0.0; k];
-    // let mut gamma_dec: Vec<f64> = vec![0.0; k];
-    // let mut min = f64::MAX;
-    // for (hat, (pos, dec)) in zip(
-    //     gamma_hat.iter_mut(),
-    //     zip(gamma_pos.iter_mut(), gamma_dec.iter_mut()),
-    // ) {
-    //     *pos = *hat;
-    //     min = hat.min(min);
-    //     *hat = min;
-    //     *dec = min;
-    // }
+    let gamma_pos = gamma_hat.clone();
     let mut min = f64::MAX;
-    let (gamma_pos, gamma_dec): (Vec<_>, Vec<_>) = gamma_hat
-        .iter_mut()
-        .map(move |hat| {
-            let pos = *hat;
-            min = hat.min(min);
-            *hat = min;
-            (pos, min)
-        })
-        .unzip();
+    gamma_hat.iter_mut().for_each(move |hat| {
+        min = hat.min(min);
+        *hat = min;
+    });
+    let gamma_dec = gamma_hat.clone();
 
     // Greatest convex minorant via isotonic regression on derivative
     diff_in_place(gamma_hat.as_mut_slice());
