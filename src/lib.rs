@@ -126,11 +126,11 @@ pub fn init_seq(x: &[f64]) -> InitSeq {
         }
         let mut gamma_con = gamma_hat;
         let mut pos: usize = 1;
-        let mut nu_prev: f64 = gamma_con[0];
+        let mut mu_prev: f64 = gamma_con[0];
         for (nu_j, w_j) in nu.into_iter().zip(w.into_iter()) {
             for mu_pos in gamma_con[pos..pos + w_j].iter_mut() {
-                *mu_pos = nu_prev + nu_j;
-                nu_prev = mu_pos.clone();
+                *mu_pos = mu_prev + nu_j;
+                mu_prev = mu_pos.clone();
             }
             pos += w_j;
         }
