@@ -9,6 +9,7 @@ pub struct InitSeq {
     gamma_dec: Vec<f64>,
     gamma_con: Vec<f64>,
 }
+#[derive(Debug, Clone, Copy)]
 pub enum Estimator {
     Positive,
     Monotone,
